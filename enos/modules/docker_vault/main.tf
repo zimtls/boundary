@@ -22,6 +22,7 @@ terraform {
 variable "image_name" {
   description = "Name of Docker Image"
   type        = string
+  default     = "docker.mirror.hashicorp.services/hashicorp/vault:latest"
 }
 variable "network_name" {
   description = "Name of Docker Network"

@@ -125,3 +125,7 @@ module "docker_openssh_server" {
 module "docker_network" {
   source = "./modules/docker_network"
 }
+
+module "docker_minio" {
+  source = "./modules/docker_minio"
+}
