@@ -74,12 +74,12 @@ kms "aead" {
 ```
 
 ## Session Recording <sup>Enterprise and HCP Only</sup>
-Session Recording requires at least one PKI worker with access to local and remote storage.
+[Session Recording](/boundary/docs/configuration/session-recording) requires at least one PKI worker with access to local and remote storage.
 PKI Workers used for session recording require an accessible directory defined by `recording_storage_path` for
 storing in-progress session recordings. On session closure, a local session recording is moved to remote storage and
 deleted locally.
 
-Example (not safe for production!):
+Development Example:
 
 ```hcl
 worker {
