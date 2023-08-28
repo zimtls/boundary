@@ -33,11 +33,11 @@ const (
 	keyringTypeKey  = "keyring_type"
 )
 
-func newSearchTargetsHandlerFunc(ctx context.Context, store *cache.Store) (http.HandlerFunc, error) {
+func newSearchTargetsHandlerFunc(ctx context.Context, repo *cache.Repository) (http.HandlerFunc, error) {
 	const op = "daemon.newSearchTargetsHandlerFunc"
 	switch {
-	case util.IsNil(store):
-		return nil, errors.New(ctx, errors.InvalidParameter, op, "store is missing")
+	case util.IsNil(repo):
+		return nil, errors.New(ctx, errors.InvalidParameter, op, "repository is missing")
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -70,14 +70,8 @@ func newSearchTargetsHandlerFunc(ctx context.Context, store *cache.Store) (http.
 			return
 		}
 
-		repo, err := cache.NewRepository(ctx, store)
-		if err != nil {
-			writeError(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		p, err := repo.LookupPersona(ctx, boundaryAddr, keyringType, tokenName, cache.WithUpdateLastAccessedTime(true))
-		if err != nil || p == nil {
+		atId, err := repo.LookupStoredAuthTokenId(ctx, boundaryAddr, tokenName, keyringType, cache.WithUpdateLastAccessedTime(true))
+		if err != nil || atId == "" {
 			writeError(w, "Forbidden", http.StatusForbidden)
 			return
 		}
@@ -86,9 +80,9 @@ func newSearchTargetsHandlerFunc(ctx context.Context, store *cache.Store) (http.
 		var found []*targets.Target
 		switch query {
 		case "":
-			found, err = repo.ListTargets(r.Context(), p)
+			found, err = repo.ListTargets(r.Context(), boundaryAddr, tokenName, keyringType)
 		default:
-			found, err = repo.QueryTargets(r.Context(), p, query)
+			found, err = repo.QueryTargets(r.Context(), boundaryAddr, tokenName, keyringType, query)
 		}
 
 		if err != nil {

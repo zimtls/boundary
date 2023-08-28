@@ -25,164 +25,24 @@ const (
 	personaStalenessLimit = 36 * time.Hour
 )
 
+// tokenLookupFn takes a token name and returns the token
+type tokenLookupFn func(keyring string, tokenName string) *authtokens.AuthToken
+
 type Repository struct {
-	rw *db.Db
+	rw            *db.Db
+	tokenLookupFn tokenLookupFn
 }
 
-func NewRepository(ctx context.Context, s *Store) (*Repository, error) {
+func NewRepository(ctx context.Context, s *Store, tFn tokenLookupFn, opt ...Option) (*Repository, error) {
 	const op = "cache.NewRepository"
 	switch {
 	case util.IsNil(s):
 		return nil, errors.New(ctx, errors.InvalidParameter, op, "missing store")
-	}
-	return &Repository{rw: db.New(s.conn)}, nil
-}
-
-// AddPersona adds a persona to the repository.  If the number of personas now
-// exceed a limit, the  persona retrieved least recently is deleted.
-func (r *Repository) AddPersona(ctx context.Context, p *Persona) error {
-	const op = "cache.(Repository).AddPersona"
-	switch {
-	case p == nil:
-		return errors.New(ctx, errors.InvalidParameter, op, "persona is nil")
-	case p.TokenName == "":
-		return errors.New(ctx, errors.InvalidParameter, op, "persona's token name is empty")
-	case p.KeyringType == "":
-		return errors.New(ctx, errors.InvalidParameter, op, "persona's keyring type is empty")
-	case p.BoundaryAddr == "":
-		return errors.New(ctx, errors.InvalidParameter, op, "persona's boundary address is empty")
-	case p.AuthTokenId == "":
-		return errors.New(ctx, errors.InvalidParameter, op, "persona's auth token id is empty")
+	case util.IsNil(tFn):
+		return nil, errors.New(ctx, errors.InvalidParameter, op, "missing token lookup function")
 	}
 
-	p.LastAccessedTime = time.Now()
-
-	onConflict := db.OnConflict{
-		Target: db.Columns{"boundary_addr", "keyring_type", "token_name"},
-		Action: db.SetColumns([]string{"auth_token_id", "last_accessed_time"}),
-	}
-	_, err := r.rw.DoTx(ctx, db.StdRetryCnt, db.ExpBackoff{}, func(reader db.Reader, writer db.Writer) error {
-		if err := writer.Create(ctx, p, db.WithOnConflict(&onConflict)); err != nil {
-			return errors.Wrap(ctx, err, op)
-		}
-
-		var personas []*Persona
-		if err := reader.SearchWhere(ctx, &personas, "", []any{}, db.WithLimit(-1)); err != nil {
-			return errors.Wrap(ctx, err, op)
-		}
-		if len(personas) <= personaLimit {
-			return nil
-		}
-
-		var oldestPersona *Persona
-		for _, p := range personas {
-			if oldestPersona == nil || oldestPersona.LastAccessedTime.After(p.LastAccessedTime) {
-				oldestPersona = p
-			}
-		}
-		if oldestPersona != nil {
-			if _, err := writer.Delete(ctx, oldestPersona); err != nil {
-				return errors.Wrap(ctx, err, op)
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// LookupPersona returns the persona.
-// Accepts withUpdateLastAccessedTime option.
-func (r *Repository) LookupPersona(ctx context.Context, addr, keyringType, tokenName string, opt ...Option) (*Persona, error) {
-	const op = "cache.(Repository).LookupPersona"
-	switch {
-	case addr == "":
-		return nil, errors.New(ctx, errors.InvalidParameter, op, "address is empty")
-	case keyringType == "":
-		return nil, errors.New(ctx, errors.InvalidParameter, op, "keyring type is empty")
-	case tokenName == "":
-		return nil, errors.New(ctx, errors.InvalidParameter, op, "token name is empty")
-	}
-	opts, err := getOpts(opt...)
-	if err != nil {
-		return nil, errors.Wrap(ctx, err, op)
-	}
-
-	p := &Persona{
-		BoundaryAddr: addr,
-		KeyringType:  keyringType,
-		TokenName:    tokenName,
-	}
-	if err := r.rw.LookupById(ctx, p); err != nil {
-		if errors.IsNotFoundError(err) {
-			return nil, nil
-		}
-		return nil, errors.Wrap(ctx, err, op)
-	}
-
-	if opts.withUpdateLastAccessedTime {
-		updatedP := &Persona{
-			BoundaryAddr:     p.BoundaryAddr,
-			TokenName:        p.TokenName,
-			KeyringType:      p.KeyringType,
-			LastAccessedTime: time.Now(),
-		}
-		if _, err := r.rw.Update(ctx, updatedP, []string{"LastAccessedTime"}, nil); err != nil {
-			return nil, errors.Wrap(ctx, err, op)
-		}
-	}
-
-	return p, nil
-}
-
-func (r *Repository) DeletePersona(ctx context.Context, p *Persona) error {
-	const op = "cache.(Repository).DeletePersona"
-	switch {
-	case p == nil:
-		return errors.New(ctx, errors.InvalidParameter, op, "missing persona")
-	case p.BoundaryAddr == "":
-		return errors.New(ctx, errors.InvalidParameter, op, "missing boundary address")
-	case p.TokenName == "":
-		return errors.New(ctx, errors.InvalidParameter, op, "missing token name")
-	case p.KeyringType == "":
-		return errors.New(ctx, errors.InvalidParameter, op, "missing keyring type")
-	}
-
-	n, err := r.rw.Delete(ctx, p)
-	if err != nil {
-		return errors.Wrap(ctx, err, op)
-	}
-	switch n {
-	case 1:
-		return nil
-	case 0:
-		return errors.New(ctx, errors.RecordNotFound, op, "persona not found when attempting deletion")
-	default:
-		return errors.New(ctx, errors.MultipleRecords, op, "multiple personas deleted when one was requested")
-	}
-}
-
-// RemoveStalePersonas removes all personas which are older than the staleness
-func (r *Repository) RemoveStalePersonas(ctx context.Context, opt ...Option) error {
-	const op = "cache.(Repository).RemoveStalePersonas"
-	if _, err := r.rw.Exec(ctx, "delete from cache_persona where last_accessed_time < @last_accessed_time",
-		[]any{sql.Named("last_accessed_time", time.Now().Add(-personaStalenessLimit))}); err != nil {
-		return errors.Wrap(ctx, err, op)
-	}
-	return nil
-}
-
-// ListPersonas returns all known personas in the cache
-func (r *Repository) ListPersonas(ctx context.Context) ([]*Persona, error) {
-	const op = "cache.(Repository).ListPersonas"
-	var ret []*Persona
-	if err := r.rw.SearchWhere(ctx, &ret, "true", nil); err != nil {
-		return nil, errors.Wrap(ctx, err, op)
-	}
-	return ret, nil
+	return &Repository{rw: db.New(s.conn), tokenLookupFn: tFn}, nil
 }
 
 func (r *Repository) SaveError(ctx context.Context, resourceType string, err error) error {
@@ -207,29 +67,27 @@ func (r *Repository) SaveError(ctx context.Context, resourceType string, err err
 	return nil
 }
 
-func (r *Repository) RefreshTargets(ctx context.Context, p *Persona, targets []*targets.Target) error {
-	const op = "cache.(Repository).RefreshTargets"
+func (r *Repository) refreshTargets(ctx context.Context, u *User, targets []*targets.Target) error {
+	const op = "cache.(Repository).refreshTargets"
 	switch {
-	case p == nil:
-		return errors.New(ctx, errors.InvalidParameter, op, "persona is nil")
-	case p.TokenName == "":
-		return errors.New(ctx, errors.InvalidParameter, op, "token name is missing")
-	case p.KeyringType == "":
-		return errors.New(ctx, errors.InvalidParameter, op, "keyring type is missing")
-	case p.BoundaryAddr == "":
+	case util.IsNil(u):
+		return errors.New(ctx, errors.InvalidParameter, op, "user is missing")
+	case u.UserId == "":
+		return errors.New(ctx, errors.InvalidParameter, op, "user id is missing")
+	case u.BoundaryAddr == "":
 		return errors.New(ctx, errors.InvalidParameter, op, "boundary address is missing")
 	}
 
-	foundP := p.clone()
-	if err := r.rw.LookupById(ctx, foundP); err != nil {
-		// if this persona isn't known about, error out.
-		return errors.Wrap(ctx, err, op)
+	found := u.clone()
+	if err := r.rw.LookupById(ctx, found); err != nil {
+		// if this user isn't known, error out.l
+		return errors.Wrap(ctx, err, op, errors.WithMsg("looking up user"))
 	}
 
 	_, err := r.rw.DoTx(ctx, db.StdRetryCnt, db.ExpBackoff{}, func(r db.Reader, w db.Writer) error {
 		// TODO: Instead of deleting everything, use refresh tokens and apply the delta
-		if _, err := w.Exec(ctx, "delete from cache_target where boundary_addr = @boundary_addr and token_name = @token_name and keyring_type = @keyring_type",
-			[]any{sql.Named("boundary_addr", p.BoundaryAddr), sql.Named("keyring_type", p.KeyringType), sql.Named("token_name", p.TokenName)}); err != nil {
+		if _, err := w.Exec(ctx, "delete from cache_target where boundary_addr = @boundary_addr and boundary_user_id = @boundary_user_id",
+			[]any{sql.Named("boundary_addr", u.BoundaryAddr), sql.Named("boundary_user_id", u.UserId)}); err != nil {
 			return err
 		}
 
@@ -239,17 +97,16 @@ func (r *Repository) RefreshTargets(ctx context.Context, p *Persona, targets []*
 				return err
 			}
 			newTarget := Target{
-				BoundaryAddr: p.BoundaryAddr,
-				KeyringType:  p.KeyringType,
-				TokenName:    p.TokenName,
-				Id:           t.Id,
-				Name:         t.Name,
-				Description:  t.Description,
-				Address:      t.Address,
-				Item:         string(item),
+				BoundaryAddr:   u.BoundaryAddr,
+				BoundaryUserId: u.UserId,
+				Id:             t.Id,
+				Name:           t.Name,
+				Description:    t.Description,
+				Address:        t.Address,
+				Item:           string(item),
 			}
 			onConflict := db.OnConflict{
-				Target: db.Columns{"boundary_addr", "token_name", "keyring_type", "id"},
+				Target: db.Columns{"boundary_addr", "boundary_user_id", "id"},
 				Action: db.UpdateAll(true),
 			}
 			if err := w.Create(ctx, newTarget, db.WithOnConflict(&onConflict)); err != nil {
@@ -267,68 +124,77 @@ func (r *Repository) RefreshTargets(ctx context.Context, p *Persona, targets []*
 	return nil
 }
 
-func (r *Repository) ListTargets(ctx context.Context, p *Persona) ([]*targets.Target, error) {
+func (r *Repository) ListTargets(ctx context.Context, boundaryAddr, tokenName, keyringType string) ([]*targets.Target, error) {
 	const op = "cache.(Repository).ListTargets"
 	switch {
-	case p == nil:
-		return nil, errors.New(ctx, errors.InvalidParameter, op, "persona is missing")
-	case p.TokenName == "":
+	case tokenName == "":
 		return nil, errors.New(ctx, errors.InvalidParameter, op, "token name is missing")
-	case p.KeyringType == "":
+	case keyringType == "":
 		return nil, errors.New(ctx, errors.InvalidParameter, op, "keyring type is missing")
-	case p.BoundaryAddr == "":
+	case boundaryAddr == "":
 		return nil, errors.New(ctx, errors.InvalidParameter, op, "boundary address is missing")
 	}
-	ret, err := r.searchTargets(ctx, p, "true", nil)
+	st, err := r.lookupStoredAuthToken(ctx, boundaryAddr, tokenName, keyringType)
+	if err != nil {
+		return nil, errors.Wrap(ctx, err, op)
+	}
+	if st == nil {
+		return nil, errors.New(ctx, errors.NotFound, op, "stored auth token not found")
+	}
+	ret, err := r.searchTargets(ctx, st, "true", nil)
 	if err != nil {
 		return nil, errors.Wrap(ctx, err, op)
 	}
 	return ret, nil
 }
 
-func (r *Repository) QueryTargets(ctx context.Context, p *Persona, query string) ([]*targets.Target, error) {
+func (r *Repository) QueryTargets(ctx context.Context, boundaryAddr, tokenName, keyringType, query string) ([]*targets.Target, error) {
 	const op = "cache.(Repository).QueryTargets"
 	switch {
-	case p == nil:
-		return nil, errors.New(ctx, errors.InvalidParameter, op, "persona is missing")
-	case p.TokenName == "":
+	case tokenName == "":
 		return nil, errors.New(ctx, errors.InvalidParameter, op, "token name is missing")
-	case p.KeyringType == "":
+	case keyringType == "":
 		return nil, errors.New(ctx, errors.InvalidParameter, op, "keyring type is missing")
-	case p.BoundaryAddr == "":
+	case boundaryAddr == "":
 		return nil, errors.New(ctx, errors.InvalidParameter, op, "boundary address is missing")
 	case query == "":
 		return nil, errors.New(ctx, errors.InvalidParameter, op, "query is missing")
 	}
 
-	w, err := mql.Parse(query, Target{}, mql.WithIgnoredFields("BoundaryAddr", "KeyringType", "TokenName", "Item"))
+	st, err := r.lookupStoredAuthToken(ctx, boundaryAddr, tokenName, keyringType)
+	if err != nil {
+		return nil, errors.Wrap(ctx, err, op)
+	}
+	if st == nil {
+		return nil, errors.New(ctx, errors.NotFound, op, "stored auth token not found")
+	}
+
+	w, err := mql.Parse(query, Target{}, mql.WithIgnoredFields("BoundaryAddr", "PersonaUserId", "Item"))
 	if err != nil {
 		return nil, errors.Wrap(ctx, err, op, errors.WithCode(errors.InvalidParameter))
 	}
-	ret, err := r.searchTargets(ctx, p, w.Condition, w.Args)
+	ret, err := r.searchTargets(ctx, st, w.Condition, w.Args)
 	if err != nil {
 		return nil, errors.Wrap(ctx, err, op)
 	}
 	return ret, nil
 }
 
-func (r *Repository) searchTargets(ctx context.Context, p *Persona, condition string, searchArgs []any) ([]*targets.Target, error) {
+func (r *Repository) searchTargets(ctx context.Context, st *storedToken, condition string, searchArgs []any) ([]*targets.Target, error) {
 	const op = "cache.(Repository).searchTargets"
 	switch {
-	case p == nil:
+	case st == nil:
 		return nil, errors.New(ctx, errors.InvalidParameter, op, "persona is missing")
-	case p.TokenName == "":
-		return nil, errors.New(ctx, errors.InvalidParameter, op, "token name is missing")
-	case p.KeyringType == "":
-		return nil, errors.New(ctx, errors.InvalidParameter, op, "keyring type is missing")
-	case p.BoundaryAddr == "":
+	case st.UserId == "":
+		return nil, errors.New(ctx, errors.InvalidParameter, op, "user id is missing")
+	case st.BoundaryAddr == "":
 		return nil, errors.New(ctx, errors.InvalidParameter, op, "boundary address is missing")
 	case condition == "":
 		return nil, errors.New(ctx, errors.InvalidParameter, op, "condition is missing")
 	}
 
-	condition = fmt.Sprintf("%s and (boundary_addr = ? and keyring_type = ? and token_name = ?)", condition)
-	args := append(searchArgs, p.BoundaryAddr, p.KeyringType, p.TokenName)
+	condition = fmt.Sprintf("%s and (boundary_addr = ? and boundary_user_id = ?)", condition)
+	args := append(searchArgs, st.BoundaryAddr, st.UserId)
 	var cachedTargets []*Target
 	if err := r.rw.SearchWhere(ctx, &cachedTargets, condition, args); err != nil {
 		return nil, errors.Wrap(ctx, err, op)
@@ -346,14 +212,13 @@ func (r *Repository) searchTargets(ctx context.Context, p *Persona, condition st
 }
 
 type Target struct {
-	BoundaryAddr string `gorm:"primaryKey"`
-	KeyringType  string `gorm:"primaryKey"`
-	TokenName    string `gorm:"primaryKey"`
-	Id           string `gorm:"primaryKey"`
-	Name         string
-	Description  string
-	Address      string
-	Item         string
+	BoundaryAddr   string `gorm:"primaryKey"`
+	BoundaryUserId string `gorm:"primaryKey"`
+	Id             string `gorm:"primaryKey"`
+	Name           string
+	Description    string
+	Address        string
+	Item           string
 }
 
 func (*Target) TableName() string {
@@ -369,36 +234,4 @@ type ApiError struct {
 
 func (*ApiError) TableName() string {
 	return "cache_api_error"
-}
-
-type Persona struct {
-	BoundaryAddr     string `gorm:"primaryKey"`
-	KeyringType      string `gorm:"primaryKey"`
-	TokenName        string `gorm:"primaryKey"`
-	AuthTokenId      string
-	LastAccessedTime time.Time `gorm:"default:(strftime('%Y-%m-%d %H:%M:%f','now'))"`
-}
-
-func (*Persona) TableName() string {
-	return "cache_persona"
-}
-
-// tokenLookupFn takes a token name and returns the token
-type tokenLookupFn func(keyring string, tokenName string) *authtokens.AuthToken
-
-func (p *Persona) Token(tfn tokenLookupFn) *authtokens.AuthToken {
-	if at := tfn(p.KeyringType, p.TokenName); at != nil && at.Id == p.AuthTokenId {
-		return at
-	}
-	return nil
-}
-
-func (p *Persona) clone() *Persona {
-	return &Persona{
-		BoundaryAddr:     p.BoundaryAddr,
-		KeyringType:      p.KeyringType,
-		TokenName:        p.TokenName,
-		AuthTokenId:      p.AuthTokenId,
-		LastAccessedTime: p.LastAccessedTime,
-	}
 }

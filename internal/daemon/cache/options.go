@@ -24,6 +24,7 @@ type options struct {
 	withUrl                    string
 	withUpdateLastAccessedTime bool
 	withDbType                 dbw.DbType
+	withTargetRetrievalFunc    targetRetrievalFunc
 }
 
 // Option - how options are passed as args
@@ -162,6 +163,14 @@ func WithDebug(debug bool) Option {
 func WithUpdateLastAccessedTime(b bool) Option {
 	return func(o *options) error {
 		o.withUpdateLastAccessedTime = b
+		return nil
+	}
+}
+
+// WithTargetRetrievalFunc provides an option for specifying a targetRetrievalFunc
+func WithTargetRetrievalFunc(fn targetRetrievalFunc) Option {
+	return func(o *options) error {
+		o.withTargetRetrievalFunc = fn
 		return nil
 	}
 }
