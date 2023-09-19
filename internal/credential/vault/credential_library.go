@@ -10,7 +10,6 @@ import (
 	"github.com/hashicorp/boundary/globals"
 	"github.com/hashicorp/boundary/internal/credential"
 	"github.com/hashicorp/boundary/internal/credential/vault/store"
-	"github.com/hashicorp/boundary/internal/db/timestamp"
 	"github.com/hashicorp/boundary/internal/errors"
 	"github.com/hashicorp/boundary/internal/oplog"
 	"google.golang.org/protobuf/proto"
@@ -134,14 +133,4 @@ var _ credential.Library = (*CredentialLibrary)(nil)
 type sortCredentialLibrary struct {
 	publicId   string
 	updateTime time.Time
-}
-
-type deletedCredentialLibrary struct {
-	PublicId   string `gorm:"primary_key"`
-	DeleteTime *timestamp.Timestamp
-}
-
-// TableName returns the tablename to override the default gorm table name
-func (s *deletedCredentialLibrary) TableName() string {
-	return "credential_library_deleted"
 }
