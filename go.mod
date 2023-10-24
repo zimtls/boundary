@@ -6,8 +6,6 @@ replace github.com/hashicorp/boundary/api => ./api
 
 replace github.com/hashicorp/boundary/sdk => ./sdk
 
-//replace github.com/hashicorp/nodeenrollment => ../nodeenrollment
-
 require (
 	github.com/fatih/color v1.15.0
 	github.com/fatih/structs v1.1.0
@@ -15,7 +13,7 @@ require (
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/golang-migrate/migrate/v4 v4.16.2
 	github.com/golang-sql/civil v0.0.0-20190719163853-cb61b32ac6fe
-	github.com/google/go-cmp v0.5.9
+	github.com/google/go-cmp v0.6.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.16.0
 	github.com/hashicorp/boundary/api v0.0.39
@@ -45,7 +43,7 @@ require (
 	github.com/hashicorp/go-sockaddr v1.0.5
 	github.com/hashicorp/go-uuid v1.0.3
 	github.com/hashicorp/hcl v1.0.0
-	github.com/hashicorp/vault/api v1.9.1
+	github.com/hashicorp/vault/api v1.10.0
 	github.com/iancoleman/strcase v0.2.0
 	github.com/jackc/pgconn v1.14.1
 	github.com/jackc/pgx/v4 v4.18.1 // indirect
@@ -95,7 +93,7 @@ require (
 	github.com/hashicorp/dbassert v0.0.0-20230622135851-cc4c0f18f4a7
 	github.com/hashicorp/go-kms-wrapping/extras/kms/v2 v2.0.0-20230902160534-7a966e6313fd
 	github.com/hashicorp/go-version v1.6.0
-	github.com/hashicorp/nodeenrollment v0.2.7
+	github.com/hashicorp/nodeenrollment v0.2.9
 	github.com/jackc/pgx/v5 v5.4.3
 	github.com/jimlambrt/gldap v0.1.7
 	github.com/kelseyhightower/envconfig v1.4.0
