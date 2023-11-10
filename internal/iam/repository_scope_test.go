@@ -620,3 +620,170 @@ func Test_Repository_ListRecursive(t *testing.T) {
 		})
 	}
 }
+
+func TestRepository_ListScopes_Pagination(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	conn, _ := db.TestSetup(t, "postgres")
+	wrapper := db.TestWrapper(t)
+	repo := TestRepo(t, conn, wrapper)
+	org := TestOrg(t, repo)
+
+	for i := 0; i < 10; i++ {
+		TestProject(t, repo, org.GetPublicId())
+	}
+
+	t.Run("withStartPageAfterItem", func(t *testing.T) {
+		page1, err := repo.ListScopes(
+			ctx,
+			[]string{org.GetPublicId()},
+			WithLimit(2),
+		)
+		require.NoError(t, err)
+		require.Len(t, page1, 2)
+		page2, err := repo.ListScopes(
+			ctx,
+			[]string{org.GetPublicId()},
+			WithLimit(2),
+			WithStartPageAfterItem(page1[1]),
+		)
+		require.NoError(t, err)
+		require.Len(t, page2, 2)
+		for _, item := range page1 {
+			assert.NotEqual(t, item.GetPublicId(), page2[0].GetPublicId())
+			assert.NotEqual(t, item.GetPublicId(), page2[1].GetPublicId())
+		}
+		page3, err := repo.ListScopes(
+			ctx,
+			[]string{org.GetPublicId()},
+			WithLimit(2),
+			WithStartPageAfterItem(page2[1]),
+		)
+		require.NoError(t, err)
+		require.Len(t, page3, 2)
+		for _, item := range page2 {
+			assert.NotEqual(t, item.GetPublicId(), page3[0].GetPublicId())
+			assert.NotEqual(t, item.GetPublicId(), page3[1].GetPublicId())
+		}
+		page4, err := repo.ListScopes(
+			ctx,
+			[]string{org.GetPublicId()},
+			WithLimit(2),
+			WithStartPageAfterItem(page3[1]),
+		)
+		require.NoError(t, err)
+		require.Len(t, page4, 2)
+		for _, item := range page3 {
+			assert.NotEqual(t, item.GetPublicId(), page4[0].GetPublicId())
+			assert.NotEqual(t, item.GetPublicId(), page4[1].GetPublicId())
+		}
+		page5, err := repo.ListScopes(
+			ctx,
+			[]string{org.GetPublicId()},
+			WithLimit(2),
+			WithStartPageAfterItem(page4[1]),
+		)
+		require.NoError(t, err)
+		require.Len(t, page5, 2)
+		for _, item := range page4 {
+			assert.NotEqual(t, item.GetPublicId(), page5[0].GetPublicId())
+			assert.NotEqual(t, item.GetPublicId(), page5[1].GetPublicId())
+		}
+		page6, err := repo.ListScopes(
+			ctx,
+			[]string{org.GetPublicId()},
+			WithLimit(2),
+			WithStartPageAfterItem(page5[1]),
+		)
+		require.NoError(t, err)
+		require.Empty(t, page6)
+
+		// Update the first user and check that it gets listed subsequently
+		page1[0].Name = "new-name"
+		_, _, err = repo.UpdateScope(ctx, page1[0], page1[0].GetVersion(), []string{"name"})
+		require.NoError(t, err)
+		page7, err := repo.ListScopes(
+			ctx,
+			[]string{org.GetPublicId()},
+			WithLimit(2),
+			WithStartPageAfterItem(page5[1]),
+		)
+		require.NoError(t, err)
+		require.Len(t, page7, 1)
+		require.Equal(t, page7[0].GetPublicId(), page1[0].GetPublicId())
+	})
+}
+
+func Test_listDeletedIds(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	conn, _ := db.TestSetup(t, "postgres")
+	wrapper := db.TestWrapper(t)
+	repo := TestRepo(t, conn, wrapper)
+	org := TestOrg(t, repo)
+
+	// Expect no entries at the start
+	deletedIds, ttime, err := repo.listDeletedScopeIds(ctx, time.Now().AddDate(-1, 0, 0))
+	require.NoError(t, err)
+	require.Empty(t, deletedIds)
+
+	// Transaction time should be within ~10 seconds of now
+	now := time.Now()
+	assert.True(t, ttime.Add(-10*time.Second).Before(now))
+	assert.True(t, ttime.Add(10*time.Second).After(now))
+
+	// Delete a scope
+	p := TestProject(t, repo, org.GetPublicId())
+	_, err = repo.DeleteScope(ctx, p.PublicId)
+	require.NoError(t, err)
+
+	// Expect a single entry
+	deletedIds, ttime, err = repo.listDeletedScopeIds(ctx, time.Now().AddDate(-1, 0, 0))
+	require.NoError(t, err)
+	require.Equal(t, []string{p.PublicId}, deletedIds)
+	now = time.Now()
+	assert.True(t, ttime.Add(-10*time.Second).Before(now))
+	assert.True(t, ttime.Add(10*time.Second).After(now))
+
+	// Try again with the time set to now, expect no entries
+	deletedIds, ttime, err = repo.listDeletedScopeIds(ctx, time.Now())
+	require.NoError(t, err)
+	require.Empty(t, deletedIds)
+	now = time.Now()
+	assert.True(t, ttime.Add(-10*time.Second).Before(now))
+	assert.True(t, ttime.Add(10*time.Second).After(now))
+}
+
+func Test_estimatedCount(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	conn, _ := db.TestSetup(t, "postgres")
+	wrapper := db.TestWrapper(t)
+	repo := TestRepo(t, conn, wrapper)
+	sqlDb, err := conn.SqlDB(ctx)
+	require.NoError(t, err)
+
+	// Check total entries at start, expect 1 (global)
+	numItems, err := repo.estimatedScopesCount(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, numItems)
+
+	// Create a scope, expect 2 entries
+	org := TestOrg(t, repo)
+	// Run analyze to update estimate
+	_, err = sqlDb.ExecContext(ctx, "analyze")
+	require.NoError(t, err)
+	numItems, err = repo.estimatedScopesCount(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 2, numItems)
+
+	// Delete the scope, expect 1 again
+	_, err = repo.DeleteScope(ctx, org.PublicId)
+	require.NoError(t, err)
+	// Run analyze to update estimate
+	_, err = sqlDb.ExecContext(ctx, "analyze")
+	require.NoError(t, err)
+	numItems, err = repo.estimatedScopesCount(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, numItems)
+}

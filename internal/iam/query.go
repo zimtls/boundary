@@ -111,4 +111,8 @@ const (
 	select * from final
 	order by action, member_id;
 	`
+
+	estimateCountScopes = `
+	select reltuples::bigint as estimate from pg_class where oid in ('iam_scope'::regclass)
+	`
 )

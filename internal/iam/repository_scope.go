@@ -6,8 +6,11 @@ package iam
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/boundary/globals"
 	"github.com/hashicorp/boundary/internal/db"
@@ -460,18 +463,57 @@ func (r *Repository) DeleteScope(ctx context.Context, withPublicId string, _ ...
 	return rowsDeleted, nil
 }
 
-// ListScopes with the parent IDs, supports the WithLimit option.
+// ListScopes with the parent IDs, supports the options:
+//   - WithLimit
+//   - WithStartPageAfterItem
 func (r *Repository) ListScopes(ctx context.Context, withParentIds []string, opt ...Option) ([]*Scope, error) {
 	const op = "iam.(Repository).ListScopes"
 	if len(withParentIds) == 0 {
 		return nil, errors.New(ctx, errors.InvalidParameter, op, "missing parent id")
 	}
-	var items []*Scope
-	err := r.list(ctx, &items, "parent_id in (?)", []any{withParentIds}, opt...)
+
+	opts := getOpts(opt...)
+	limit := r.defaultLimit
+	if opts.withLimit != 0 {
+		// non-zero signals an override of the default limit for the repo.
+		limit = opts.withLimit
+	}
+
+	var inClauses []string
+	var args []any
+	for i, parentId := range withParentIds {
+		arg := "parent_id_" + strconv.Itoa(i)
+		inClauses = append(inClauses, "@"+arg)
+		args = append(args, sql.Named(arg, parentId))
+	}
+	inClause := strings.Join(inClauses, ", ")
+	whereClause := "parent_id in (" + inClause + ")"
+
+	// Ordering and pagination are tightly coupled.
+	// We order by update_time ascending so that new
+	// and updated items appear at the end of the pagination.
+	// We need to further order by public_id to distinguish items
+	// with identical update times.
+	withOrder := "update_time asc, public_id asc"
+	if opts.withStartPageAfterItem != nil {
+		// Now that the order is defined, we can use a simple where
+		// clause to only include items updated since the specified
+		// start of the page. We use greater than or equal for the update
+		// time as there may be items with identical update_times. We
+		// then use PublicId as a tiebreaker.
+		args = append(args,
+			sql.Named("after_item_update_time", opts.withStartPageAfterItem.GetUpdateTime()),
+			sql.Named("after_item_id", opts.withStartPageAfterItem.GetPublicId()),
+		)
+		whereClause = "(" + whereClause + ") and (update_time > @after_item_update_time or (update_time = @after_item_update_time and public_id > @after_item_id))"
+	}
+
+	var scopes []*Scope
+	err := r.reader.SearchWhere(ctx, &scopes, whereClause, args, db.WithLimit(limit), db.WithOrder(withOrder))
 	if err != nil {
 		return nil, errors.Wrap(ctx, err, op)
 	}
-	return items, nil
+	return scopes, nil
 }
 
 // ListScopesRecursively allows for recursive listing of scopes based on a root scope
@@ -502,4 +544,45 @@ func (r *Repository) ListScopesRecursively(ctx context.Context, rootScopeId stri
 		return nil, errors.Wrap(ctx, err, op+":ListQuery")
 	}
 	return scopes, nil
+}
+
+// listDeletedScopeIds lists the public IDs of any scopes deleted since the timestamp provided.
+func (r *Repository) listDeletedScopeIds(ctx context.Context, since time.Time) ([]string, time.Time, error) {
+	const op = "iam.(Repository).listDeletedScopeIds"
+	var deletedScopes []*deletedScope
+	var transactionTimestamp time.Time
+	if _, err := r.writer.DoTx(ctx, db.StdRetryCnt, db.ExpBackoff{}, func(r db.Reader, w db.Writer) error {
+		if err := r.SearchWhere(ctx, &deletedScopes, "delete_time >= ?", []any{since}); err != nil {
+			return errors.Wrap(ctx, err, op, errors.WithMsg("failed to query deleted scopes"))
+		}
+		var err error
+		transactionTimestamp, err = r.Now(ctx)
+		if err != nil {
+			return errors.Wrap(ctx, err, op, errors.WithMsg("failed to query transaction timestamp"))
+		}
+		return nil
+	}); err != nil {
+		return nil, time.Time{}, err
+	}
+	var scopeIds []string
+	for _, user := range deletedScopes {
+		scopeIds = append(scopeIds, user.PublicId)
+	}
+	return scopeIds, transactionTimestamp, nil
+}
+
+// estimatedScopesCount returns and estimate of the total number of items in the scopes table.
+func (r *Repository) estimatedScopesCount(ctx context.Context) (int, error) {
+	const op = "iam.(Repository).estimatedScopesCount"
+	rows, err := r.reader.Query(ctx, estimateCountScopes, nil)
+	if err != nil {
+		return 0, errors.Wrap(ctx, err, op, errors.WithMsg("failed to query total scopes"))
+	}
+	var count int
+	for rows.Next() {
+		if err := r.reader.ScanRows(ctx, rows, &count); err != nil {
+			return 0, errors.Wrap(ctx, err, op, errors.WithMsg("failed to query total scopes"))
+		}
+	}
+	return count, nil
 }
