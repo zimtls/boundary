@@ -62,4 +62,68 @@ select public_id, project_id from target
 	estimateCountTargets = `
 select sum(reltuples::bigint) as estimate from pg_class where oid in ('target_tcp'::regclass, 'target_ssh'::regclass)
 `
+
+	listTargetsTemplate = `
+  with targets as (
+      select public_id
+        from target
+         -- search condition for applying permissions is constructed
+       where %s
+    order by create_time desc, public_id asc
+       limit %d
+  )
+    select * 
+      from target_all_subtypes
+     where public_id in (select public_id from targets)
+  order by create_time desc, public_id asc;
+`
+
+	listTargetsPageTemplate = `
+  with targets as (
+      select public_id
+        from target
+       where (create_time, public_id) < (@last_item_create_time, @last_item_id)
+         -- search condition for applying permissions is constructed
+         and %s
+    order by create_time desc, public_id asc
+       limit %d
+  )
+    select *
+      from target_all_subtypes
+     where public_id in (select public_id from targets)
+  order by create_time desc, public_id asc;
+`
+
+	refreshTargetsTemplate = `
+  with targets as (
+      select public_id
+        from target
+       where update_time > @updated_after_time
+         -- search condition for applying permissions is constructed
+         and %s
+    order by update_time desc, public_id asc
+       limit %d
+  )
+    select *
+      from target_all_subtypes
+     where public_id in (select public_id from targets)
+  order by update_time desc, public_id asc;
+`
+
+	refreshTargetsPageTemplate = `
+  with targets as (
+      select public_id
+        from target
+       where update_time > @updated_after_time
+         and (update_time, public_id) < (@last_item_update_time, @last_item_id)
+         -- search condition for applying permissions is constructed
+         and %s
+    order by update_time desc, public_id asc
+       limit %d
+  )
+    select *
+      from target_all_subtypes
+     where public_id in (select public_id from targets)
+  order by update_time desc, public_id asc;
+`
 )
