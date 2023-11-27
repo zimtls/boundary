@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/hashicorp/boundary/internal/boundary"
 	"github.com/hashicorp/boundary/internal/db/timestamp"
 	"github.com/hashicorp/boundary/internal/errors"
 	"github.com/hashicorp/boundary/internal/types/resource"
@@ -257,17 +258,17 @@ func NewRefresh(
 // LastItem returns the last item stored in the token.
 // This will differ depending on whether the token has
 // a pagination, start-refresh or refresh subtype.
-func (tk *Token) LastItem(ctx context.Context) (Item, error) {
+func (tk *Token) LastItem(ctx context.Context) (*Item, error) {
 	const op = "listtoken.(*Token).LastItem"
 	switch st := tk.Subtype.(type) {
 	case *PaginationToken:
-		return &item{
+		return &Item{
 			publicId:     st.LastItemId,
 			createTime:   timestamp.New(st.LastItemCreateTime),
 			resourceType: tk.ResourceType,
 		}, nil
 	case *RefreshToken:
-		return &item{
+		return &Item{
 			publicId:     st.LastItemId,
 			updateTime:   timestamp.New(st.LastItemUpdateTime),
 			resourceType: tk.ResourceType,
@@ -286,7 +287,7 @@ func (tk *Token) LastItem(ctx context.Context) (Item, error) {
 func (tk *Token) Transition(
 	ctx context.Context,
 	completeListing bool,
-	lastItem Item,
+	lastItem boundary.Resource,
 	deletedIdsTime time.Time,
 	listTime time.Time,
 ) error {

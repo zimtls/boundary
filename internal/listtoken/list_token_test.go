@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/hashicorp/boundary/internal/boundary"
 	"github.com/hashicorp/boundary/internal/db/timestamp"
 	"github.com/hashicorp/boundary/internal/errors"
 	"github.com/hashicorp/boundary/internal/listtoken"
@@ -1215,6 +1216,7 @@ func TestToken_Transition(t *testing.T) {
 }
 
 type fakeTarget struct {
+	boundary.Resource
 	publicId   string
 	updateTime *timestamp.Timestamp
 	createTime *timestamp.Timestamp
