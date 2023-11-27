@@ -5,6 +5,7 @@ package target
 
 import (
 	"context"
+	"runtime/trace"
 	"time"
 
 	"github.com/hashicorp/boundary/globals"
@@ -30,6 +31,7 @@ func ListRefreshPage(
 	tok *listtoken.Token,
 	repo *Repository,
 ) (*pagination.ListResponse[Target], error) {
+	defer trace.StartRegion(ctx, "targets.ListRefreshPage").End()
 	const op = "target.ListRefreshPage"
 
 	if len(grantsHash) == 0 {
@@ -53,6 +55,7 @@ func ListRefreshPage(
 	}
 
 	listItemsFn := func(ctx context.Context, lastPageItem Target, limit int) ([]Target, time.Time, error) {
+		defer trace.StartRegion(ctx, "ListRefreshPage.listItemsFn").End()
 		opts := []Option{
 			WithLimit(limit),
 		}

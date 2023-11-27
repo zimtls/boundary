@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"net"
 	"net/url"
+	"runtime/trace"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -196,6 +197,7 @@ func NewService(
 
 // ListTargets implements the interface pbs.TargetServiceServer.
 func (s Service) ListTargets(ctx context.Context, req *pbs.ListTargetsRequest) (*pbs.ListTargetsResponse, error) {
+	defer trace.StartRegion(ctx, "targets.ListTargets").End()
 	const op = "targets.(Service).ListTargets"
 
 	if err := validateListRequest(ctx, req); err != nil {
@@ -255,7 +257,7 @@ func (s Service) ListTargets(ctx context.Context, req *pbs.ListTargetsRequest) (
 			if err != nil {
 				return false, err
 			}
-			filterable, err := subtypes.Filterable(pbItem)
+			filterable, err := subtypes.Filterable(ctx, pbItem)
 			if err != nil {
 				return false, err
 			}

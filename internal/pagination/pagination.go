@@ -5,6 +5,7 @@ package pagination
 
 import (
 	"context"
+	"runtime/trace"
 	"time"
 
 	"github.com/hashicorp/boundary/internal/boundary"
@@ -390,6 +391,7 @@ func list[T boundary.Resource](
 	filterItemFn ListFilterFunc[T],
 	listItemsFn ListItemsFunc[T],
 ) ([]T, bool, time.Time, error) {
+	defer trace.StartRegion(ctx, "pagination.list").End()
 	const op = "pagination.list"
 
 	var lastItem T

@@ -5,6 +5,7 @@ package target
 
 import (
 	"context"
+	"runtime/trace"
 	"time"
 
 	"github.com/hashicorp/boundary/internal/errors"
@@ -23,6 +24,7 @@ func List(
 	filterItemFn pagination.ListFilterFunc[Target],
 	repo *Repository,
 ) (*pagination.ListResponse[Target], error) {
+	defer trace.StartRegion(ctx, "targets.List").End()
 	const op = "target.List"
 
 	if len(grantsHash) == 0 {
@@ -39,6 +41,7 @@ func List(
 	}
 
 	listItemsFn := func(ctx context.Context, lastPageItem Target, limit int) ([]Target, time.Time, error) {
+		defer trace.StartRegion(ctx, "List.listItemsFn").End()
 		opts := []Option{
 			WithLimit(limit),
 		}
