@@ -9,7 +9,7 @@ import (
 
 	"github.com/hashicorp/boundary/internal/credential"
 	"github.com/hashicorp/boundary/internal/db/timestamp"
-	"github.com/hashicorp/boundary/internal/listtoken"
+	"github.com/hashicorp/boundary/internal/pagination"
 	"github.com/hashicorp/boundary/internal/perms"
 	"github.com/hashicorp/boundary/internal/target/store"
 	"github.com/hashicorp/boundary/internal/types/subtypes"
@@ -17,7 +17,7 @@ import (
 )
 
 type fakeItem struct {
-	listtoken.Item
+	pagination.Item
 	publicId   string
 	updateTime time.Time
 }
