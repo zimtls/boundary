@@ -209,7 +209,7 @@ func ListPage[T boundary.Resource](
 	if err != nil {
 		return nil, errors.Wrap(ctx, err, op)
 	}
-	var lastItem listtoken.Item
+	var lastItem boundary.Resource
 	if len(items) > 0 {
 		lastItem = items[len(items)-1]
 	}
@@ -294,7 +294,7 @@ func ListRefresh[T boundary.Resource](
 	if err != nil {
 		return nil, errors.Wrap(ctx, err, op)
 	}
-	var lastItem listtoken.Item
+	var lastItem boundary.Resource
 	if len(items) > 0 {
 		lastItem = items[len(items)-1]
 	}
@@ -374,7 +374,7 @@ func ListRefreshPage[T boundary.Resource](
 		return nil, errors.Wrap(ctx, err, op)
 	}
 
-	var lastItem listtoken.Item
+	var lastItem boundary.Resource
 	if len(items) > 0 {
 		lastItem = items[len(items)-1]
 	}
