@@ -483,7 +483,8 @@ session_states as (
      from sessions s
      join session_states ss            on s.public_id = ss.session_id
 left join session_host_set_hosts shsh  on s.public_id = shsh.session_id
-left join session_worker_protocols swp on s.public_id = swp.session_id;
+left join session_worker_protocols swp on s.public_id = swp.session_id
+ order by create_time desc, public_id asc;
 `
 	listSessionsPageTemplate = `
 with sessions as (
@@ -546,7 +547,8 @@ session_states as (
      from sessions s
      join session_states ss            on s.public_id = ss.session_id
 left join session_host_set_hosts shsh  on s.public_id = shsh.session_id
-left join session_worker_protocols swp on s.public_id = swp.session_id;
+left join session_worker_protocols swp on s.public_id = swp.session_id
+ order by create_time desc, public_id asc;
 `
 	refreshSessionsTemplate = `
 with sessions as (
@@ -609,7 +611,8 @@ session_states as (
      from sessions s
      join session_states ss            on s.public_id = ss.session_id
 left join session_host_set_hosts shsh  on s.public_id = shsh.session_id
-left join session_worker_protocols swp on s.public_id = swp.session_id;
+left join session_worker_protocols swp on s.public_id = swp.session_id
+ order by update_time desc, public_id asc;
 `
 	refreshSessionsPageTemplate = `
 with sessions as (
@@ -673,7 +676,8 @@ session_states as (
      from sessions s
      join session_states ss            on s.public_id = ss.session_id
 left join session_host_set_hosts shsh  on s.public_id = shsh.session_id
-left join session_worker_protocols swp on s.public_id = swp.session_id;
+left join session_worker_protocols swp on s.public_id = swp.session_id
+ order by update_time desc, public_id asc;
 `
 	estimateCountSessions = `
     select reltuples::bigint as estimate from pg_class where oid in ('session'::regclass)
