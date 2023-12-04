@@ -424,52 +424,196 @@ where session_id = ?
 	and credential_sha256 = ?;
 `
 	listSessionsTemplate = `
-with session_ids as (
-    select public_id
+with sessions as (
+    select *
       from session
            -- search condition for applying permissions is constructed
      where %s
   order by create_time desc, public_id asc
      limit %d
+),
+session_host_set_hosts as (
+    select session_id,
+           host_id,
+           host_set_id
+      from session_host_set_host
+     where session_id in (select public_id from sessions)
+),
+session_worker_protocols as (
+    select session_id,
+           worker_id
+      from session_worker_protocol
+     where session_id in (select public_id from sessions)
+),
+session_states as (
+    select session_id,
+           state,
+           previous_end_time,
+           start_time,
+           end_time
+      from session_state
+     where session_id in (select public_id from sessions)
 )
-   select *
-     from session_list
-    where session_list.public_id in (select * from session_ids)
- order by create_time desc, public_id asc;
+   select s.public_id,
+          s.user_id,
+          shsh.host_id,
+          s.target_id,
+          shsh.host_set_id,
+          s.auth_token_id,
+          s.project_id,
+          s.certificate,
+          s.certificate_private_key,
+          s.expiration_time,
+          s.connection_limit,
+          s.tofu_token,
+          s.key_id,
+          s.termination_reason,
+          s.version,
+          s.create_time,
+          s.update_time,
+          s.endpoint,
+          s.worker_filter,
+          s.egress_worker_filter,
+          s.ingress_worker_filter,
+          swp.worker_id,
+          ss.state,
+          ss.previous_end_time,
+          ss.start_time,
+          ss.end_time
+     from sessions s
+     join session_states ss            on s.public_id = ss.session_id
+left join session_host_set_hosts shsh  on s.public_id = shsh.session_id
+left join session_worker_protocols swp on s.public_id = swp.session_id;
 `
 	listSessionsPageTemplate = `
-with session_ids as (
-    select public_id
+with sessions as (
+    select *
       from session
      where (create_time, public_id) < (@last_item_create_time, @last_item_id)
            -- search condition for applying permissions is constructed
        and %s
   order by create_time desc, public_id asc
      limit %d
+),
+session_host_set_hosts as (
+    select session_id,
+           host_id,
+           host_set_id
+      from session_host_set_host
+     where session_id in (select public_id from sessions)
+),
+session_worker_protocols as (
+    select session_id,
+           worker_id
+      from session_worker_protocol
+     where session_id in (select public_id from sessions)
+),
+session_states as (
+    select session_id,
+           state,
+           previous_end_time,
+           start_time,
+           end_time
+      from session_state
+     where session_id in (select public_id from sessions)
 )
-   select *
-     from session_list
-    where session_list.public_id in (select * from session_ids)
- order by create_time desc, public_id asc;
+   select s.public_id,
+          s.user_id,
+          shsh.host_id,
+          s.target_id,
+          shsh.host_set_id,
+          s.auth_token_id,
+          s.project_id,
+          s.certificate,
+          s.certificate_private_key,
+          s.expiration_time,
+          s.connection_limit,
+          s.tofu_token,
+          s.key_id,
+          s.termination_reason,
+          s.version,
+          s.create_time,
+          s.update_time,
+          s.endpoint,
+          s.worker_filter,
+          s.egress_worker_filter,
+          s.ingress_worker_filter,
+          swp.worker_id,
+          ss.state,
+          ss.previous_end_time,
+          ss.start_time,
+          ss.end_time
+     from sessions s
+     join session_states ss            on s.public_id = ss.session_id
+left join session_host_set_hosts shsh  on s.public_id = shsh.session_id
+left join session_worker_protocols swp on s.public_id = swp.session_id;
 `
 	refreshSessionsTemplate = `
-with session_ids as (
-    select public_id
+with sessions as (
+    select *
       from session
      where update_time > @updated_after_time
            -- search condition for applying permissions is constructed
        and %s
   order by update_time desc, public_id asc
      limit %d
+),
+session_host_set_hosts as (
+    select session_id,
+           host_id,
+           host_set_id
+      from session_host_set_host
+     where session_id in (select public_id from sessions)
+),
+session_worker_protocols as (
+    select session_id,
+           worker_id
+      from session_worker_protocol
+     where session_id in (select public_id from sessions)
+),
+session_states as (
+    select session_id,
+           state,
+           previous_end_time,
+           start_time,
+           end_time
+      from session_state
+     where session_id in (select public_id from sessions)
 )
-  select *
-    from session_list
-   where session_list.public_id in (select * from session_ids)
-order by update_time desc, public_id asc;
+   select s.public_id,
+          s.user_id,
+          shsh.host_id,
+          s.target_id,
+          shsh.host_set_id,
+          s.auth_token_id,
+          s.project_id,
+          s.certificate,
+          s.certificate_private_key,
+          s.expiration_time,
+          s.connection_limit,
+          s.tofu_token,
+          s.key_id,
+          s.termination_reason,
+          s.version,
+          s.create_time,
+          s.update_time,
+          s.endpoint,
+          s.worker_filter,
+          s.egress_worker_filter,
+          s.ingress_worker_filter,
+          swp.worker_id,
+          ss.state,
+          ss.previous_end_time,
+          ss.start_time,
+          ss.end_time
+     from sessions s
+     join session_states ss            on s.public_id = ss.session_id
+left join session_host_set_hosts shsh  on s.public_id = shsh.session_id
+left join session_worker_protocols swp on s.public_id = swp.session_id;
 `
 	refreshSessionsPageTemplate = `
-with session_ids as (
-    select public_id
+with sessions as (
+    select *
       from session
      where update_time > @updated_after_time
        and (update_time, public_id) < (@last_item_update_time, @last_item_id)
@@ -477,11 +621,59 @@ with session_ids as (
        and %s
   order by update_time desc, public_id asc
      limit %d
+),
+session_host_set_hosts as (
+    select session_id,
+           host_id,
+           host_set_id
+      from session_host_set_host
+     where session_id in (select public_id from sessions)
+),
+session_worker_protocols as (
+    select session_id,
+           worker_id
+      from session_worker_protocol
+     where session_id in (select public_id from sessions)
+),
+session_states as (
+    select session_id,
+           state,
+           previous_end_time,
+           start_time,
+           end_time
+      from session_state
+     where session_id in (select public_id from sessions)
 )
-  select *
-    from session_list
-   where session_list.public_id in (select * from session_ids)
-order by update_time desc, public_id asc;
+   select s.public_id,
+          s.user_id,
+          shsh.host_id,
+          s.target_id,
+          shsh.host_set_id,
+          s.auth_token_id,
+          s.project_id,
+          s.certificate,
+          s.certificate_private_key,
+          s.expiration_time,
+          s.connection_limit,
+          s.tofu_token,
+          s.key_id,
+          s.termination_reason,
+          s.version,
+          s.create_time,
+          s.update_time,
+          s.endpoint,
+          s.worker_filter,
+          s.egress_worker_filter,
+          s.ingress_worker_filter,
+          swp.worker_id,
+          ss.state,
+          ss.previous_end_time,
+          ss.start_time,
+          ss.end_time
+     from sessions s
+     join session_states ss            on s.public_id = ss.session_id
+left join session_host_set_hosts shsh  on s.public_id = shsh.session_id
+left join session_worker_protocols swp on s.public_id = swp.session_id;
 `
 	estimateCountSessions = `
     select reltuples::bigint as estimate from pg_class where oid in ('session'::regclass)
