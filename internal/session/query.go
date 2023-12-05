@@ -439,12 +439,6 @@ session_host_set_hosts as (
       from session_host_set_host
      where session_id in (select public_id from sessions)
 ),
-session_worker_protocols as (
-    select session_id,
-           worker_id
-      from session_worker_protocol
-     where session_id in (select public_id from sessions)
-),
 session_states as (
     select session_id,
            state,
@@ -472,10 +466,6 @@ session_states as (
           s.create_time,
           s.update_time,
           s.endpoint,
-          s.worker_filter,
-          s.egress_worker_filter,
-          s.ingress_worker_filter,
-          swp.worker_id,
           ss.state,
           ss.previous_end_time,
           ss.start_time,
@@ -483,7 +473,6 @@ session_states as (
      from sessions s
      join session_states ss            on s.public_id = ss.session_id
 left join session_host_set_hosts shsh  on s.public_id = shsh.session_id
-left join session_worker_protocols swp on s.public_id = swp.session_id
  order by create_time desc, public_id asc;
 `
 	listSessionsPageTemplate = `
@@ -503,12 +492,6 @@ session_host_set_hosts as (
       from session_host_set_host
      where session_id in (select public_id from sessions)
 ),
-session_worker_protocols as (
-    select session_id,
-           worker_id
-      from session_worker_protocol
-     where session_id in (select public_id from sessions)
-),
 session_states as (
     select session_id,
            state,
@@ -536,10 +519,6 @@ session_states as (
           s.create_time,
           s.update_time,
           s.endpoint,
-          s.worker_filter,
-          s.egress_worker_filter,
-          s.ingress_worker_filter,
-          swp.worker_id,
           ss.state,
           ss.previous_end_time,
           ss.start_time,
@@ -547,7 +526,6 @@ session_states as (
      from sessions s
      join session_states ss            on s.public_id = ss.session_id
 left join session_host_set_hosts shsh  on s.public_id = shsh.session_id
-left join session_worker_protocols swp on s.public_id = swp.session_id
  order by create_time desc, public_id asc;
 `
 	refreshSessionsTemplate = `
@@ -567,12 +545,6 @@ session_host_set_hosts as (
       from session_host_set_host
      where session_id in (select public_id from sessions)
 ),
-session_worker_protocols as (
-    select session_id,
-           worker_id
-      from session_worker_protocol
-     where session_id in (select public_id from sessions)
-),
 session_states as (
     select session_id,
            state,
@@ -600,10 +572,6 @@ session_states as (
           s.create_time,
           s.update_time,
           s.endpoint,
-          s.worker_filter,
-          s.egress_worker_filter,
-          s.ingress_worker_filter,
-          swp.worker_id,
           ss.state,
           ss.previous_end_time,
           ss.start_time,
@@ -611,7 +579,6 @@ session_states as (
      from sessions s
      join session_states ss            on s.public_id = ss.session_id
 left join session_host_set_hosts shsh  on s.public_id = shsh.session_id
-left join session_worker_protocols swp on s.public_id = swp.session_id
  order by update_time desc, public_id asc;
 `
 	refreshSessionsPageTemplate = `
@@ -632,12 +599,6 @@ session_host_set_hosts as (
       from session_host_set_host
      where session_id in (select public_id from sessions)
 ),
-session_worker_protocols as (
-    select session_id,
-           worker_id
-      from session_worker_protocol
-     where session_id in (select public_id from sessions)
-),
 session_states as (
     select session_id,
            state,
@@ -665,10 +626,6 @@ session_states as (
           s.create_time,
           s.update_time,
           s.endpoint,
-          s.worker_filter,
-          s.egress_worker_filter,
-          s.ingress_worker_filter,
-          swp.worker_id,
           ss.state,
           ss.previous_end_time,
           ss.start_time,
@@ -676,7 +633,6 @@ session_states as (
      from sessions s
      join session_states ss            on s.public_id = ss.session_id
 left join session_host_set_hosts shsh  on s.public_id = shsh.session_id
-left join session_worker_protocols swp on s.public_id = swp.session_id
  order by update_time desc, public_id asc;
 `
 	estimateCountSessions = `
