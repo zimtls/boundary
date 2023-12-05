@@ -427,8 +427,7 @@ where session_id = ?
 with sessions as (
     select *
       from session
-           -- search condition for applying permissions is constructed
-     where %s
+     where %s -- search condition for applying permissions is constructed
   order by create_time desc, public_id asc
      limit %d
 ),
@@ -447,7 +446,8 @@ session_states as (
            end_time
       from session_state
      where session_id in (select public_id from sessions)
-)
+),
+final as (
    select s.public_id,
           s.user_id,
           shsh.host_id,
@@ -473,6 +473,9 @@ session_states as (
      from sessions s
      join session_states ss            on s.public_id = ss.session_id
 left join session_host_set_hosts shsh  on s.public_id = shsh.session_id
+)
+   select *
+     from final
  order by create_time desc, public_id asc;
 `
 	listSessionsPageTemplate = `
@@ -480,8 +483,7 @@ with sessions as (
     select *
       from session
      where (create_time, public_id) < (@last_item_create_time, @last_item_id)
-           -- search condition for applying permissions is constructed
-       and %s
+       and %s -- search condition for applying permissions is constructed
   order by create_time desc, public_id asc
      limit %d
 ),
@@ -500,7 +502,8 @@ session_states as (
            end_time
       from session_state
      where session_id in (select public_id from sessions)
-)
+),
+final as (
    select s.public_id,
           s.user_id,
           shsh.host_id,
@@ -526,6 +529,9 @@ session_states as (
      from sessions s
      join session_states ss            on s.public_id = ss.session_id
 left join session_host_set_hosts shsh  on s.public_id = shsh.session_id
+)
+   select *
+     from final
  order by create_time desc, public_id asc;
 `
 	refreshSessionsTemplate = `
@@ -533,8 +539,7 @@ with sessions as (
     select *
       from session
      where update_time > @updated_after_time
-           -- search condition for applying permissions is constructed
-       and %s
+       and %s -- search condition for applying permissions is constructed
   order by update_time desc, public_id asc
      limit %d
 ),
@@ -553,7 +558,8 @@ session_states as (
            end_time
       from session_state
      where session_id in (select public_id from sessions)
-)
+),
+final as (
    select s.public_id,
           s.user_id,
           shsh.host_id,
@@ -579,6 +585,9 @@ session_states as (
      from sessions s
      join session_states ss            on s.public_id = ss.session_id
 left join session_host_set_hosts shsh  on s.public_id = shsh.session_id
+)
+   select *
+     from final
  order by update_time desc, public_id asc;
 `
 	refreshSessionsPageTemplate = `
@@ -587,8 +596,7 @@ with sessions as (
       from session
      where update_time > @updated_after_time
        and (update_time, public_id) < (@last_item_update_time, @last_item_id)
-           -- search condition for applying permissions is constructed
-       and %s
+       and %s -- search condition for applying permissions is constructed
   order by update_time desc, public_id asc
      limit %d
 ),
@@ -607,7 +615,8 @@ session_states as (
            end_time
       from session_state
      where session_id in (select public_id from sessions)
-)
+),
+final as (
    select s.public_id,
           s.user_id,
           shsh.host_id,
@@ -633,6 +642,9 @@ session_states as (
      from sessions s
      join session_states ss            on s.public_id = ss.session_id
 left join session_host_set_hosts shsh  on s.public_id = shsh.session_id
+)
+   select *
+     from final
  order by update_time desc, public_id asc;
 `
 	estimateCountSessions = `
