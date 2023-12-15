@@ -516,13 +516,13 @@ func wrapHandlerWithCors(h http.Handler, props HandlerProperties) http.Handler {
 
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Vary", "Origin")
+		w.Header().Set("Access-Control-Expose-Headers", allowedResponseHeaders)
 
 		// Apply headers for preflight requests
 		if req.Method == http.MethodOptions {
 			w.Header().Set("Access-Control-Allow-Methods", strings.Join(allowedMethods, ", "))
 			w.Header().Set("Access-Control-Allow-Headers", strings.Join(allowedHeaders, ", "))
 			w.Header().Set("Access-Control-Max-Age", "300")
-			w.Header().Set("Access-Control-Expose-Headers", allowedResponseHeaders)
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
