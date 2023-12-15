@@ -403,29 +403,6 @@ where session_id = ?
 `
 	listSessionsTemplate = `
 with sessions as (
-    select *
-      from session
-     where %s -- search condition for applying permissions is constructed
-  order by create_time desc, public_id asc
-     limit %d
-),
-session_host_set_hosts as (
-    select session_id,
-           host_id,
-           host_set_id
-      from session_host_set_host
-     where session_id in (select public_id from sessions)
-),
-session_states as (
-    select session_id,
-           state,
-           previous_end_time,
-           start_time,
-           end_time
-      from session_state
-     where session_id in (select public_id from sessions)
-),
-final as (
    select s.public_id,
           s.user_id,
           shsh.host_id,
@@ -443,45 +420,54 @@ final as (
           s.version,
           s.create_time,
           s.update_time,
-          s.endpoint,
-          ss.state,
-          ss.previous_end_time,
-          ss.start_time,
-          ss.end_time
-     from sessions s
-     join session_states ss            on s.public_id = ss.session_id
-left join session_host_set_hosts shsh  on s.public_id = shsh.session_id
+          s.endpoint
+     from session s
+left join session_host_set_host shsh on s.public_id = shsh.session_id
+    where %s -- permission query constructed
+ order by create_time desc, public_id asc
+    limit %d
+),
+session_states as (
+   select session_id,
+          state,
+          previous_end_time,
+          start_time,
+          end_time
+     from session_state
+    where session_id in (select public_id from sessions)
+),
+final as (
+  select s.public_id,
+         s.user_id,
+         s.host_id,
+         s.target_id,
+         s.host_set_id,
+         s.auth_token_id,
+         s.project_id,
+         s.certificate,
+         s.certificate_private_key,
+         s.expiration_time,
+         s.connection_limit,
+         s.tofu_token,
+         s.key_id,
+         s.termination_reason,
+         s.version,
+         s.create_time,
+         s.update_time,
+         s.endpoint,
+         ss.state,
+         ss.previous_end_time,
+         ss.start_time,
+         ss.end_time
+    from sessions s
+    join session_states ss on s.public_id = ss.session_id
 )
-   select *
-     from final
- order by create_time desc, public_id asc;
+  select *
+    from final
+order by create_time desc, public_id asc;
 `
 	listSessionsPageTemplate = `
 with sessions as (
-    select *
-      from session
-     where (create_time, public_id) < (@last_item_create_time, @last_item_id)
-       and %s -- search condition for applying permissions is constructed
-  order by create_time desc, public_id asc
-     limit %d
-),
-session_host_set_hosts as (
-    select session_id,
-           host_id,
-           host_set_id
-      from session_host_set_host
-     where session_id in (select public_id from sessions)
-),
-session_states as (
-    select session_id,
-           state,
-           previous_end_time,
-           start_time,
-           end_time
-      from session_state
-     where session_id in (select public_id from sessions)
-),
-final as (
    select s.public_id,
           s.user_id,
           shsh.host_id,
@@ -499,45 +485,55 @@ final as (
           s.version,
           s.create_time,
           s.update_time,
-          s.endpoint,
-          ss.state,
-          ss.previous_end_time,
-          ss.start_time,
-          ss.end_time
-     from sessions s
-     join session_states ss            on s.public_id = ss.session_id
-left join session_host_set_hosts shsh  on s.public_id = shsh.session_id
+          s.endpoint
+     from session s
+left join session_host_set_host shsh on s.public_id = shsh.session_id
+    where (create_time, public_id) < (@last_item_create_time, @last_item_id)
+      and %s -- permission query constructed
+ order by create_time desc, public_id asc
+    limit %d
+),
+session_states as (
+   select session_id,
+          state,
+          previous_end_time,
+          start_time,
+          end_time
+     from session_state
+    where session_id in (select public_id from sessions)
+),
+final as (
+  select s.public_id,
+         s.user_id,
+         s.host_id,
+         s.target_id,
+         s.host_set_id,
+         s.auth_token_id,
+         s.project_id,
+         s.certificate,
+         s.certificate_private_key,
+         s.expiration_time,
+         s.connection_limit,
+         s.tofu_token,
+         s.key_id,
+         s.termination_reason,
+         s.version,
+         s.create_time,
+         s.update_time,
+         s.endpoint,
+         ss.state,
+         ss.previous_end_time,
+         ss.start_time,
+         ss.end_time
+    from sessions s
+    join session_states ss on s.public_id = ss.session_id
 )
-   select *
-     from final
- order by create_time desc, public_id asc;
+  select *
+    from final
+order by create_time desc, public_id asc;
 `
 	refreshSessionsTemplate = `
 with sessions as (
-    select *
-      from session
-     where update_time > @updated_after_time
-       and %s -- search condition for applying permissions is constructed
-  order by update_time desc, public_id asc
-     limit %d
-),
-session_host_set_hosts as (
-    select session_id,
-           host_id,
-           host_set_id
-      from session_host_set_host
-     where session_id in (select public_id from sessions)
-),
-session_states as (
-    select session_id,
-           state,
-           previous_end_time,
-           start_time,
-           end_time
-      from session_state
-     where session_id in (select public_id from sessions)
-),
-final as (
    select s.public_id,
           s.user_id,
           shsh.host_id,
@@ -555,46 +551,55 @@ final as (
           s.version,
           s.create_time,
           s.update_time,
-          s.endpoint,
-          ss.state,
-          ss.previous_end_time,
-          ss.start_time,
-          ss.end_time
-     from sessions s
-     join session_states ss            on s.public_id = ss.session_id
-left join session_host_set_hosts shsh  on s.public_id = shsh.session_id
+          s.endpoint
+     from session s
+left join session_host_set_host shsh on s.public_id = shsh.session_id
+    where update_time > @updated_after_time
+      and %s -- permission query constructed
+ order by update_time desc, public_id asc
+    limit %d
+),
+session_states as (
+   select session_id,
+          state,
+          previous_end_time,
+          start_time,
+          end_time
+     from session_state
+    where session_id in (select public_id from sessions)
+),
+final as (
+  select s.public_id,
+         s.user_id,
+         s.host_id,
+         s.target_id,
+         s.host_set_id,
+         s.auth_token_id,
+         s.project_id,
+         s.certificate,
+         s.certificate_private_key,
+         s.expiration_time,
+         s.connection_limit,
+         s.tofu_token,
+         s.key_id,
+         s.termination_reason,
+         s.version,
+         s.create_time,
+         s.update_time,
+         s.endpoint,
+         ss.state,
+         ss.previous_end_time,
+         ss.start_time,
+         ss.end_time
+    from sessions s
+    join session_states ss on s.public_id = ss.session_id
 )
-   select *
-     from final
- order by update_time desc, public_id asc;
+  select *
+    from final
+order by update_time desc, public_id asc;
 `
 	refreshSessionsPageTemplate = `
 with sessions as (
-    select *
-      from session
-     where update_time > @updated_after_time
-       and (update_time, public_id) < (@last_item_update_time, @last_item_id)
-       and %s -- search condition for applying permissions is constructed
-  order by update_time desc, public_id asc
-     limit %d
-),
-session_host_set_hosts as (
-    select session_id,
-           host_id,
-           host_set_id
-      from session_host_set_host
-     where session_id in (select public_id from sessions)
-),
-session_states as (
-    select session_id,
-           state,
-           previous_end_time,
-           start_time,
-           end_time
-      from session_state
-     where session_id in (select public_id from sessions)
-),
-final as (
    select s.public_id,
           s.user_id,
           shsh.host_id,
@@ -612,18 +617,53 @@ final as (
           s.version,
           s.create_time,
           s.update_time,
-          s.endpoint,
-          ss.state,
-          ss.previous_end_time,
-          ss.start_time,
-          ss.end_time
-     from sessions s
-     join session_states ss            on s.public_id = ss.session_id
-left join session_host_set_hosts shsh  on s.public_id = shsh.session_id
+          s.endpoint
+     from session s
+left join session_host_set_host shsh on s.public_id = shsh.session_id
+    where update_time > @updated_after_time
+      and (update_time, public_id) < (@last_item_update_time, @last_item_id)
+      and %s -- permission query constructed
+ order by create_time desc, public_id asc
+    limit %d
+),
+session_states as (
+   select session_id,
+          state,
+          previous_end_time,
+          start_time,
+          end_time
+     from session_state
+    where session_id in (select public_id from sessions)
+),
+final as (
+  select s.public_id,
+         s.user_id,
+         s.host_id,
+         s.target_id,
+         s.host_set_id,
+         s.auth_token_id,
+         s.project_id,
+         s.certificate,
+         s.certificate_private_key,
+         s.expiration_time,
+         s.connection_limit,
+         s.tofu_token,
+         s.key_id,
+         s.termination_reason,
+         s.version,
+         s.create_time,
+         s.update_time,
+         s.endpoint,
+         ss.state,
+         ss.previous_end_time,
+         ss.start_time,
+         ss.end_time
+    from sessions s
+    join session_states ss on s.public_id = ss.session_id
 )
-   select *
-     from final
- order by update_time desc, public_id asc;
+  select *
+    from final
+order by update_time desc, public_id asc;
 `
 	estimateCountSessions = `
     select reltuples::bigint as estimate from pg_class where oid in ('session'::regclass)
